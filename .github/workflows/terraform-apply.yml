@@ -1,1 +1,87 @@
+name: Terraform Apply
 
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - 'modules/**'
+      - 'environments/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment to apply (dev|staging|prod)'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: terraform
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+
+    # You can map GH "environment" to require approvals in repo settings
+    environment: |
+      ${{
+        github.event_name == 'workflow_dispatch' && inputs.environment || 'dev'
+      }}
+
+    steps:
+      - name: Determine target environment
+        id: env-select
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "env_name=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            # Default for push to main
+            echo "env_name=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="region=${{ secrets.AWS_REGION }}"
+
+      - name: Terraform plan (safety check)
+        id: plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan \
+            -var-file="../environments/${{ steps.env-select.outputs.env_name }}/terraform.tfvars" \
+            -out=tfplan
+
+      - name: Terraform apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform apply -auto-approve tfplan
