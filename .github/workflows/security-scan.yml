@@ -1,1 +1,43 @@
+name: Security Scan (Terraform)
 
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - 'modules/**'
+      - '.github/workflows/security-scan.yml'
+  schedule:
+    - cron: '0 3 * * *' # Daily at 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  tfsec:
+    name: tfsec (Terraform static analysis)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working-directory: ./terraform
+          additional_args: "--concise-output"
+
+  checkov:
+    name: Checkov (Terraform policy scan)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ./terraform
+          framework: terraform
