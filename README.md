@@ -77,9 +77,9 @@ See `/architecture/diagrams` for full diagrams.
 
 ### Step 1 — Initialize
 ### Step 2 — Plan
-'terraform plan -var-file=environments/dev/terraform.tfvars'
+`terraform plan -var-file=environments/dev/terraform.tfvars`
 ### Step 3 — Apply
-'terraform apply -var-file=environments/dev/terraform.tfvars'
+`terraform apply -var-file=environments/dev/terraform.tfvars`
 
 Production deployments should only occur via GitHub Actions.
 
