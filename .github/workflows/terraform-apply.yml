@@ -25,6 +25,7 @@ permissions:
   contents: read
 
 env:
+  AWS_REGION: "us-east-1"
   TF_WORKING_DIR: terraform
   TF_IN_AUTOMATION: true
   TF_INPUT: false
@@ -63,7 +64,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -71,7 +72,7 @@ jobs:
           terraform init \
             -backend-config="bucket=${{ secrets.TF_BACKEND_BUCKET }}" \
             -backend-config="dynamodb_table=${{ secrets.TF_BACKEND_DYNAMODB_TABLE }}" \
-            -backend-config="region=${{ secrets.AWS_REGION }}"
+            -backend-config="region=${{ env.AWS_REGION }}"
 
       - name: Terraform plan (safety check)
         id: plan
