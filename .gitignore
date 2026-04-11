@@ -1,37 +1,98 @@
-# Local .terraform directories
-.terraform/
+###############################################################################
+# Enterprise WordPress 2026 — Git Ignore Rules
+###############################################################################
 
-# .tfstate files
+# =============================================================================
+# ENVIRONMENT & SECRETS — Never commit credentials
+# =============================================================================
+.env
+.env.local
+.env.production
+.env.staging
+!.env.example
+
+# =============================================================================
+# SSL CERTIFICATES — Generated per-environment
+# =============================================================================
+ssl/
+certs/
+*.pem
+*.key
+*.crt
+*.csr
+
+# =============================================================================
+# WORDPRESS — User-generated content & runtime files
+# =============================================================================
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/cache/
+wp-content/w3tc-config/
+wp-content/advanced-cache.php
+wp-content/object-cache.php
+wp-content/debug.log
+
+# =============================================================================
+# LOGS — Generated at runtime
+# =============================================================================
+logs/
+*.log
+!.gitkeep
+
+# =============================================================================
+# BACKUPS — Large files, stored separately
+# =============================================================================
+backups/
+*.sql
+*.sql.gz
+*.tar.gz
+!scripts/*.sh
+
+# =============================================================================
+# DOCKER — Runtime data
+# =============================================================================
+docker-data/
+
+# =============================================================================
+# TERRAFORM — Infrastructure state & secrets
+# =============================================================================
+.terraform/
 *.tfstate
 *.tfstate.*
-
-# Crash log files
 crash.log
 crash.*.log
-
-# Exclude all .tfvars files, which are likely to contain sensitive data, such as
-# password, private keys, and other secrets. These should not be part of version 
-# control as they are data points which are potentially sensitive and subject 
-# to change depending on the environment.
 *.tfvars
 *.tfvars.json
-
-# Ignore override files as they are usually used to override resources locally and so
-# are not checked in
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-
-# Ignore transient lock info files created by terraform apply
 .terraform.tfstate.lock.info
-
-# Include override files you do wish to add to version control using negated pattern
-# !example_override.tf
-
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
-
-# Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# =============================================================================
+# IDE & OS — Editor and system files
+# =============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.bak
+*.orig
+
+# =============================================================================
+# NODE — If using build tools
+# =============================================================================
+node_modules/
+package-lock.json
+yarn.lock
+
+# =============================================================================
+# CLAUDE — AI assistant config (not needed in repo)
+# =============================================================================
+.claude/
+.mcp.json

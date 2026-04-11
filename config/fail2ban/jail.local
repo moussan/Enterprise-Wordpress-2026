@@ -1,0 +1,76 @@
+###############################################################################
+# Enterprise WordPress 2026 — Fail2ban Jail Configuration
+# ============================================================================
+# Monitors Nginx access logs for brute force attacks on WordPress.
+# Bans offending IPs using iptables (requires NET_ADMIN capability).
+###############################################################################
+
+[DEFAULT]
+# =============================================================================
+# GLOBAL SETTINGS
+# =============================================================================
+
+# Ban duration: 1 hour (3600 seconds).
+# Adjust based on your threat model — longer bans for persistent attackers.
+bantime = 3600
+
+# Time window to count failures (10 minutes).
+findtime = 600
+
+# Maximum failures before ban.
+maxretry = 5
+
+# Ban action: use iptables for Docker environments.
+banaction = iptables-multiport
+
+# =============================================================================
+# WORDPRESS LOGIN BRUTE FORCE
+# =============================================================================
+[wordpress-login]
+enabled  = true
+port     = http,https
+filter   = wordpress-login
+logpath  = /var/log/nginx/access.log
+maxretry = 5
+findtime = 300
+bantime  = 3600
+
+# =============================================================================
+# WORDPRESS XMLRPC ABUSE
+# =============================================================================
+# xmlrpc.php is used for pingbacks, trackbacks, and the mobile app.
+# It's heavily abused for brute force amplification and DDoS.
+[wordpress-xmlrpc]
+enabled  = true
+port     = http,https
+filter   = wordpress-xmlrpc
+logpath  = /var/log/nginx/access.log
+maxretry = 3
+findtime = 300
+bantime  = 7200
+
+# =============================================================================
+# NGINX BAD BOTS / SCANNERS
+# =============================================================================
+# Detect automated scanners probing for vulnerabilities.
+[nginx-botsearch]
+enabled  = true
+port     = http,https
+filter   = nginx-botsearch
+logpath  = /var/log/nginx/access.log
+maxretry = 5
+findtime = 600
+bantime  = 3600
+
+# =============================================================================
+# NGINX 403 / 404 FLOODING
+# =============================================================================
+# Detect directory traversal and vulnerability scanning attempts.
+[nginx-http-auth]
+enabled  = true
+port     = http,https
+filter   = nginx-4xx
+logpath  = /var/log/nginx/access.log
+maxretry = 20
+findtime = 600
+bantime  = 1800

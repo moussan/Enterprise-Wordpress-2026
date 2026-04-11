@@ -1,0 +1,104 @@
+###############################################################################
+# Enterprise WordPress 2026 — Deployment Pipeline
+# ============================================================================
+# Deploys the WordPress stack to a remote server via SSH.
+# Triggered on push to main or manual dispatch.
+#
+# Required GitHub Secrets:
+#   DEPLOY_HOST      — Server IP or hostname
+#   DEPLOY_USERNAME  — SSH username
+#   DEPLOY_SSH_KEY   — Private SSH key
+#   DEPLOY_PATH      — Path on server (e.g., /opt/wordpress)
+###############################################################################
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/workflows/ci.yml'
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create deployment
+        uses: chrnorm/deployment-action@v2
+        id: deployment
+        with:
+          token: ${{ github.token }}
+          environment: ${{ github.event.inputs.environment || 'staging' }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+
+            DEPLOY_PATH="${{ secrets.DEPLOY_PATH || '/opt/wordpress' }}"
+
+            # Navigate to project directory
+            cd "$DEPLOY_PATH"
+
+            # Pull latest changes
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Run deployment script
+            ./scripts/update.sh
+
+            # Verify deployment
+            ./scripts/healthcheck.sh --quiet
+
+      - name: Update deployment status (success)
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: success
+
+      - name: Update deployment status (failure)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          state: failure
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Deployment to ${{ github.event.inputs.environment || 'staging' }} failed!"
+          echo "Check the server logs and run ./scripts/healthcheck.sh for diagnostics."

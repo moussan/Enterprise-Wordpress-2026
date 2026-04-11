@@ -1,0 +1,337 @@
+###############################################################################
+# Enterprise WordPress 2026 — Production Docker Compose
+# ============================================================================
+# Stack: Nginx · PHP-FPM (WordPress) · MariaDB 11 · Redis · Certbot · WP-CLI
+#
+# Usage:
+#   cp .env.example .env          # configure environment variables
+#   docker compose up -d          # start the full stack
+#   docker compose logs -f        # follow logs
+#
+# Architecture:
+#   Client → Nginx (443/80) → PHP-FPM (WordPress) → MariaDB + Redis
+#
+# See README.md and docs/ for full documentation.
+###############################################################################
+
+services:
+  # ===========================================================================
+  # NGINX — Reverse proxy & web server
+  # ===========================================================================
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      # Nginx configuration
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./config/nginx/wordpress.conf:/etc/nginx/conf.d/default.conf:ro
+      # WordPress files (shared with PHP-FPM)
+      - wordpress_data:/var/www/html:ro
+      # SSL certificates (managed by Certbot)
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+      # Nginx logs (for fail2ban monitoring)
+      - nginx_logs:/var/log/nginx
+      # FastCGI cache
+      - fastcgi_cache:/var/run/nginx-cache
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      wordpress:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/wp-admin/install.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+
+  # ===========================================================================
+  # WORDPRESS — PHP 8.3 FPM with WordPress
+  # ===========================================================================
+  wordpress:
+    image: wordpress:6.7-php8.3-fpm-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-wordpress
+    restart: unless-stopped
+    environment:
+      # Database connection
+      WORDPRESS_DB_HOST: mariadb:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX:-wp_}
+      # WordPress configuration extras
+      WORDPRESS_CONFIG_EXTRA: |
+        /* === Redis Object Cache === */
+        define('WP_REDIS_HOST', 'redis');
+        define('WP_REDIS_PORT', 6379);
+        define('WP_REDIS_DATABASE', 0);
+        define('WP_REDIS_TIMEOUT', 1);
+        define('WP_REDIS_READ_TIMEOUT', 1);
+
+        /* === Security Hardening === */
+        define('DISALLOW_FILE_EDIT', true);
+        define('DISALLOW_FILE_MODS', ${WP_DISALLOW_FILE_MODS:-false});
+        define('FORCE_SSL_ADMIN', ${WP_FORCE_SSL:-true});
+        define('WP_AUTO_UPDATE_CORE', 'minor');
+
+        /* === Performance === */
+        define('WP_MEMORY_LIMIT', '512M');
+        define('WP_MAX_MEMORY_LIMIT', '512M');
+        define('WP_POST_REVISIONS', 10);
+        define('AUTOSAVE_INTERVAL', 120);
+        define('EMPTY_TRASH_DAYS', 14);
+
+        /* === Debugging (disabled in production) === */
+        define('WP_DEBUG', ${WP_DEBUG:-false});
+        define('WP_DEBUG_LOG', ${WP_DEBUG_LOG:-false});
+        define('WP_DEBUG_DISPLAY', false);
+        define('SCRIPT_DEBUG', false);
+
+        /* === Cron === */
+        define('DISABLE_WP_CRON', ${WP_DISABLE_CRON:-false});
+
+        /* === File Permissions === */
+        define('FS_METHOD', 'direct');
+        define('FS_CHMOD_DIR', 0755);
+        define('FS_CHMOD_FILE', 0644);
+    volumes:
+      # WordPress files
+      - wordpress_data:/var/www/html
+      # Custom PHP configuration
+      - ./config/php/php.ini:/usr/local/etc/php/conf.d/custom.ini:ro
+      - ./config/php/www.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+      # Extra WordPress config
+      - ./config/wordpress/wp-config-extra.php:/var/www/html/wp-config-extra.php:ro
+    networks:
+      - backend
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php-fpm-healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  # ===========================================================================
+  # MARIADB 11 — Database server
+  # ===========================================================================
+  mariadb:
+    image: mariadb:11.4
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wordpress}
+      MYSQL_USER: ${MYSQL_USER:-wordpress}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MARIADB_AUTO_UPGRADE: "1"
+    volumes:
+      # Data persistence
+      - mariadb_data:/var/lib/mysql
+      # Custom MariaDB configuration
+      - ./config/mariadb/my.cnf:/etc/mysql/conf.d/custom.cnf:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # ===========================================================================
+  # REDIS — In-memory object cache
+  # ===========================================================================
+  redis:
+    image: redis:7.4-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # ===========================================================================
+  # CERTBOT — Let's Encrypt SSL certificate management
+  # ===========================================================================
+  certbot:
+    image: certbot/certbot:v3.0.1
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-certbot
+    restart: "no"
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # Renew certificates (run via cron or `docker compose run certbot`)
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;'"
+    networks:
+      - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # ===========================================================================
+  # WP-CLI — WordPress command-line management
+  # ===========================================================================
+  wpcli:
+    image: wordpress:cli-2.11-php8.3
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-wpcli
+    restart: "no"
+    environment:
+      WORDPRESS_DB_HOST: mariadb:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - backend
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      wordpress:
+        condition: service_healthy
+    # Override to keep container from exiting immediately
+    entrypoint: wp
+    command: "--info"
+    user: "33:33"
+    profiles:
+      - cli
+
+  # ===========================================================================
+  # FAIL2BAN — Intrusion prevention (monitors Nginx logs)
+  # ===========================================================================
+  fail2ban:
+    image: crazymax/fail2ban:1.1.0
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-fail2ban
+    restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE:-UTC}
+      F2B_LOG_TARGET: STDOUT
+      F2B_LOG_LEVEL: INFO
+      F2B_DB_PURGE_AGE: 7d
+    volumes:
+      - ./config/fail2ban/jail.local:/etc/fail2ban/jail.local:ro
+      - ./config/fail2ban/filter.d:/etc/fail2ban/filter.d:ro
+      - nginx_logs:/var/log/nginx:ro
+      - fail2ban_data:/data
+    networks:
+      - frontend
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+# =============================================================================
+# VOLUMES — Persistent data stores
+# =============================================================================
+volumes:
+  # WordPress application files
+  wordpress_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_wordpress_data
+
+  # MariaDB database files
+  mariadb_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_mariadb_data
+
+  # SSL certificates
+  certbot_conf:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_certbot_conf
+
+  # ACME challenge files
+  certbot_www:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_certbot_www
+
+  # Nginx log files (shared with fail2ban)
+  nginx_logs:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_nginx_logs
+
+  # Nginx FastCGI cache
+  fastcgi_cache:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_fastcgi_cache
+
+  # Fail2ban persistent data
+  fail2ban_data:
+    driver: local
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_fail2ban_data
+
+# =============================================================================
+# NETWORKS — Isolated network segments
+# =============================================================================
+networks:
+  # Frontend network: Nginx, Certbot, Fail2ban
+  frontend:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_frontend
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+  # Backend network: WordPress, MariaDB, Redis, Nginx
+  backend:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_backend
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.1.0/24
