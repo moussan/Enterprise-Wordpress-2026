@@ -27,15 +27,23 @@ NC := \033[0m
 # LIFECYCLE — Start, stop, restart the stack
 # =============================================================================
 
+.PHONY: env-check
+env-check:
+	@if [ ! -f .env ]; then \
+		echo -e "$(YELLOW)No .env file found. Creating one from .env.example...$(NC)"; \
+		cp .env.example .env; \
+		echo -e "$(YELLOW)Please review and edit .env before proceeding for production use!$(NC)"; \
+	fi
+
 .PHONY: up
-up: ## Start all services (development mode)
+up: env-check ## Start all services (development mode)
 	@echo -e "$(CYAN)Starting services...$(NC)"
 	docker compose up -d
 	@echo -e "$(GREEN)Stack is running!$(NC)"
 	@make --no-print-directory _show-url
 
 .PHONY: up-prod
-up-prod: ## Start all services (production mode, no dev override)
+up-prod: env-check ## Start all services (production mode, no dev override)
 	@echo -e "$(CYAN)Starting services in production mode...$(NC)"
 	docker compose -f $(COMPOSE_FILE) up -d
 	@echo -e "$(GREEN)Production stack is running!$(NC)"
@@ -88,11 +96,11 @@ logs-db: ## Follow MariaDB logs
 # =============================================================================
 
 .PHONY: deploy
-deploy: ## Run full deployment script
+deploy: env-check ## Run full deployment script
 	./scripts/deploy.sh
 
 .PHONY: deploy-prod
-deploy-prod: ## Run production deployment
+deploy-prod: env-check ## Run production deployment
 	./scripts/deploy.sh --production
 
 .PHONY: backup

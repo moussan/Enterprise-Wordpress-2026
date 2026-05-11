@@ -23,6 +23,10 @@
 
 ---
 
+## Documentation Links
+- [Deployment Guide](docs/deployment.md)
+- [Architecture Overview](docs/architecture.md)
+
 ## Architecture
 
 ```
@@ -112,6 +116,8 @@ Or use the **one-liner** for development:
 ```bash
 git clone https://github.com/moussan/Enterprise-Wordpress-2026.git && cd Enterprise-Wordpress-2026 && ./scripts/deploy.sh --dev
 ```
+
+For a comprehensive guide, see the [Deployment Guide](docs/deployment.md).
 
 ---
 

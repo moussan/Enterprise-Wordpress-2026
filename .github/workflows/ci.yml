@@ -32,6 +32,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create .env from example
+        run: cp .env.example .env
+
       - name: Validate docker-compose.yml
         run: docker compose -f docker-compose.yml config --quiet
 
@@ -122,6 +125,9 @@ jobs:
         run: |
           # Use nginx Docker image to validate config
           docker run --rm \
+            --add-host wordpress:127.0.0.1 \
+            --add-host redis:127.0.0.1 \
+            --add-host mariadb:127.0.0.1 \
             -v "${{ github.workspace }}/config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro" \
             -v "${{ github.workspace }}/config/nginx/wordpress-dev.conf:/etc/nginx/conf.d/default.conf:ro" \
             nginx:1.27-alpine \
