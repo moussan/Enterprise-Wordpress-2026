@@ -14,13 +14,15 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/workflows/ci.yml'
-      - 'terraform/**'
+  # NOTE: Uncomment the 'push' trigger below once you have configured
+  # the required GitHub Secrets (DEPLOY_HOST, DEPLOY_USERNAME, DEPLOY_SSH_KEY).
+  # push:
+  #   branches: [main]
+  #   paths-ignore:
+  #     - '**.md'
+  #     - 'docs/**'
+  #     - '.github/workflows/ci.yml'
+  #     - 'terraform/**'
   workflow_dispatch:
     inputs:
       environment:

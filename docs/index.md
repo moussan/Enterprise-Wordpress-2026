@@ -6,7 +6,7 @@ Here you will find detailed guides on architecture, deployment, security, and pe
 
 ## Table of Contents
 
-- [Architecture Overview](architecture.md)
+- [Architecture Overview](ARCHITECTURE.md)
   * Discover how the Docker Compose stack and AWS Terraform infrastructure are built.
 - [Deployment Guide](deployment.md)
   * Step-by-step instructions to get your stack running locally and in production.
