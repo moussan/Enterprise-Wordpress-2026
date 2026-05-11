@@ -48,6 +48,12 @@ up-prod: env-check ## Start all services (production mode, no dev override)
 	docker compose -f $(COMPOSE_FILE) up -d
 	@echo -e "$(GREEN)Production stack is running!$(NC)"
 
+.PHONY: up-monitoring
+up-monitoring: env-check ## Start stack with monitoring (Prometheus + Grafana)
+	@echo -e "$(CYAN)Starting services with monitoring...$(NC)"
+	docker compose -f $(COMPOSE_FILE) -f docker-compose.monitoring.yml up -d
+	@echo -e "$(GREEN)Monitoring stack is running! Access Grafana at http://localhost:3000$(NC)"
+
 .PHONY: down
 down: ## Stop all services and remove containers
 	@echo -e "$(YELLOW)Stopping services...$(NC)"

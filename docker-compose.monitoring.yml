@@ -1,0 +1,94 @@
+###############################################################################
+# Enterprise WordPress 2026 — Monitoring Stack
+# ============================================================================
+# Adds Prometheus, Grafana, and necessary exporters to monitor Nginx and PHP-FPM.
+# 
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+###############################################################################
+
+services:
+  # ===========================================================================
+  # PROMETHEUS — Metrics aggregation
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+    networks:
+      - backend
+    ports:
+      - "9090:9090"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ===========================================================================
+  # GRAFANA — Metrics visualization
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - backend
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    depends_on:
+      - prometheus
+
+  # ===========================================================================
+  # NGINX EXPORTER — Scrapes Nginx stub_status
+  # ===========================================================================
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.1.0
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-nginx-exporter
+    restart: unless-stopped
+    command:
+      - -nginx.scrape-uri=http://nginx:80/nginx_status
+    networks:
+      - backend
+    depends_on:
+      - nginx
+
+  # ===========================================================================
+  # PHP-FPM EXPORTER — Scrapes PHP-FPM status
+  # ===========================================================================
+  php-fpm-exporter:
+    image: hipages/php-fpm_exporter:2.2.0
+    container_name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}-php-fpm-exporter
+    restart: unless-stopped
+    environment:
+      - PHP_FPM_SCRAPE_URI=tcp://wordpress:9000/fpm-status
+      - PHP_FPM_FIX_PROCESS_COUNT=true
+    networks:
+      - backend
+    depends_on:
+      - wordpress
+
+volumes:
+  prometheus_data:
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_prometheus_data
+  grafana_data:
+    name: ${COMPOSE_PROJECT_NAME:-enterprise-wp}_grafana_data
