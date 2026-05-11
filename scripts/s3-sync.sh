@@ -29,7 +29,7 @@ error()   { echo -e "${RED}[ERROR]${NC}   $*" >&2; }
 step()    { echo -e "\n${CYAN}${BOLD}▶ $*${NC}"; }
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || exit 1
 
 # =============================================================================
 # CONFIGURATION

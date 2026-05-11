@@ -36,7 +36,7 @@ step()    { echo -e "\n${CYAN}${BOLD}▶ $*${NC}"; }
 
 # Get the project root directory (parent of scripts/).
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || exit 1
 
 # =============================================================================
 # PARSE ARGUMENTS

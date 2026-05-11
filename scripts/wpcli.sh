@@ -16,7 +16,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || exit 1
 
 if [ $# -eq 0 ]; then
     echo "Enterprise WordPress 2026 — WP-CLI Wrapper"
