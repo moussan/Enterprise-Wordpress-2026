@@ -189,7 +189,7 @@ MAX_WAIT=120
 ELAPSED=0
 while [ $ELAPSED -lt $MAX_WAIT ]; do
     # Check if MariaDB is healthy
-    if docker compose exec -T mariadb healthcheck.sh --connect --innodb_initialized &>/dev/null 2>&1; then
+    if docker compose exec -T mariadb healthcheck.sh --connect --innodb_initialized >/dev/null 2>&1; then
         break
     fi
     sleep 5
