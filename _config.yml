@@ -1,0 +1,10 @@
+title: Enterprise WordPress 2026
+description: Lightning-fast, hardened, one-command deploy production-grade WordPress stack.
+theme: jekyll-theme-cayman
+
+# Navigation settings
+# If using a specific theme that supports it, or just standard GH Pages
+markdown: kramdown
+plugins:
+  - jemoji
+  - jekyll-seo-tag
