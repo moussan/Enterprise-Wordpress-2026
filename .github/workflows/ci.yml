@@ -139,7 +139,6 @@ jobs:
   terraform-validate:
     name: Validate Terraform
     runs-on: ubuntu-latest
-    if: hashFiles('terraform/**/*.tf') != ''
     steps:
       - name: Checkout
         uses: actions/checkout@v4
